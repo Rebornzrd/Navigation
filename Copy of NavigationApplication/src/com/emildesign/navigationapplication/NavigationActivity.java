@@ -6,29 +6,28 @@ import java.util.HashMap;
 import java.util.Map;
 
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.content.SharedPreferences.Editor;
 import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
-
 import android.view.Display;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.GoogleMap.OnMapClickListener;
 import com.google.android.gms.maps.GoogleMap.OnMarkerClickListener;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
@@ -37,9 +36,6 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
-import com.google.android.maps.MyLocationOverlay;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
 
 
 
@@ -49,7 +45,6 @@ public class NavigationActivity extends FragmentActivity implements OnMarkerClic
 	
 	private static final LatLng STARTINGPOINT = new LatLng(40.915823, -73.121903);
 	private static final LatLng DESTINATION = new LatLng(40.915962, -73.126264);
-	private static final LatLng fra = new LatLng(50.111772, 8.682632);
 	private GoogleMap map;
 	private SupportMapFragment fragment;
 	private LatLngBounds latlngBounds;
@@ -63,27 +58,33 @@ public class NavigationActivity extends FragmentActivity implements OnMarkerClic
     private static String location ;
 	private static double DLAT = 40.915962;
 	private static double DLNG = -73.126264;
-	private LinearLayout ButtomButton;
+	private LinearLayout BottomButton;
+	private LinearLayout myDetailedListView;
+	private LinearLayout ListViewMainButton;
 	private TextView text1;
 	private TextView text2;
-	
-	
+	private TextView text3;
+	private TextView text4;
+	private ImageView ListDetialedImage;
+	private ListView listView;
+	private ArrayList<String> list;
+	private general_Service gen_service= new general_Service();
+	private SBU_dailyLife_service daily_service= new SBU_dailyLife_service();
+	private Collection<myPOI> myMarkerCollection;
+	private HashMap<Marker, myPOI> mMarkersHashMap = new HashMap<Marker, myPOI>();
+	private boolean BottomBarFlag=false;
+	private boolean ListViewFlag=false;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		
-		final Multimap <String,myMarker> myMap = ArrayListMultimap.create();
-		myMap.put("sac",new myMarker("sac", 40.914505, -73.124266));
-		myMap.put("sac",new myMarker("math tower", 40.915571, -73.126397));
 		
 	//	et = (EditText)findViewById(R.id.et_location);         
            //get reference to find the button
 		//location = et.getText().toString();
        
          //get reference to EditText
-		
-	
 		setContentView(R.layout.activity_navigation);				
 		getSreenDimanstions();
 	    fragment = ((SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map));
@@ -91,6 +92,8 @@ public class NavigationActivity extends FragmentActivity implements OnMarkerClic
 		
 		map.setMyLocationEnabled(true);
 		
+      
+		BottomButton=(LinearLayout)findViewById(R.id.BottomButton);
 		bNavigation = (ImageButton) findViewById(R.id.bNavigation);	
 		bSearch = (ImageButton) findViewById(R.id.bSearch);	
 		 et = (EditText) findViewById(R.id.et_location);
@@ -100,38 +103,67 @@ public class NavigationActivity extends FragmentActivity implements OnMarkerClic
 		lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,0,0,ll);   
 		
 		
-		
 		    bSearch.setOnClickListener(new View.OnClickListener() {
 		    	@Override
 			        public void onClick(View v) {
 		    		
 		    		   map.clear();
+		    		   gen_service.gen_flag=false;
+		    		   daily_service.daily_flag=false;
+		    		   BottomButton.setVisibility(View.INVISIBLE);
+		    		   
 			    	  location = et.getText().toString();
 			   
 			   
-
-				     Collection<myMarker> myMarkerCollection = myMap.get(location);
-				     for(myMarker marker_element: myMarkerCollection){
-				     map.addMarker(new MarkerOptions()
-				     .position((new LatLng(marker_element.getmLatitude(), marker_element.getmLongitude())))
-				      .title(marker_element.getmLabel()));
-				       LatLng  DESTINATION =new LatLng (DLAT,DLNG);
-		    		    map.moveCamera(CameraUpdateFactory.newLatLngZoom(DESTINATION, 13)); 
-				     }
-			    	 
-			    	  
+            if(gen_service.CheckGen(location)){ 
+            	gen_service.gen_flag=true;
+	       myMarkerCollection=gen_service.getTargetPOIOfGen(location);
+	        }
+            else if (daily_service.CheckDaily(location)){
+            	daily_service.daily_flag=true;
+           myMarkerCollection=daily_service.getTargetPOIOfDaily(location);
+            }
+            else 
+            myMarkerCollection = null;
+            
+            	 
+	              for(myPOI marker_element: myMarkerCollection){
+				    
+		              MarkerOptions option= new MarkerOptions()
+		                .position((new LatLng(marker_element.getmLatitude(), marker_element.getmLongitude())))
+					      .title(marker_element.getmLabel());
+		                   Marker currentMarker = map.addMarker(option);
+		                   mMarkersHashMap.put(currentMarker, marker_element);
+		                   LatLng  DESTINATION =new LatLng (DLAT,DLNG);
+	  		               map.moveCamera(CameraUpdateFactory.newLatLngZoom(DESTINATION, 13)); 
+	                   	
+	       			     }	  
 		    	}});
 		   
 		    map.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
 				
 				@Override
 				public void onMapClick(LatLng arg0) {
-				         ButtomButton.setVisibility(View.INVISIBLE);
-					
+					if(ListViewFlag==false)
+				         BottomButton.setVisibility(View.INVISIBLE);
+					else if(ListViewFlag==true){
+						 
+						 myDetailedListView.setVisibility(View.INVISIBLE);
+						 ListViewFlag=false;
+					}
 				}
 			});
 		    
 		    
+              BottomButton.setOnClickListener(new OnClickListener() {
+				
+				@Override
+				public void onClick(View v) {
+					ListViewFlag=true;      
+					myDetailedListView.setVisibility(View.VISIBLE);
+					
+				}
+			   });
 		    
 		    
 		    
@@ -141,20 +173,7 @@ public class NavigationActivity extends FragmentActivity implements OnMarkerClic
 			
 
 			@Override
-			public void onClick(View v) {											
-				//hideSoftKeyboard(v);
-				//get the place entered
-				
-				
-					
-				//Editable newTxt=(Editable)et.getText(); 
-			//	String location = newTxt.toString();
-			//	if(location=="s")
-			//	{
-			//		DLNG=-73.900566;
-			//    	DLAT=40.590093;
-			//		
-			//	}
+			public void onClick(View v) {										
 				
 
 				LatLng  DESTINATION =new LatLng (DLAT,DLNG);
@@ -165,11 +184,7 @@ public class NavigationActivity extends FragmentActivity implements OnMarkerClic
 					
 					findDirections(  STARTINGPOINT.latitude,  STARTINGPOINT.longitude,DESTINATION.latitude, DESTINATION.longitude, GMapV2Direction.MODE_WALKING);
 				}
-				//else
-				//{
-				//	isTravelingToParis = false;
-				//	findDirections( AMSTERDAM.latitude, AMSTERDAM.longitude, FRANKFURT.latitude, FRANKFURT.longitude, GMapV2Direction.MODE_WALKING );  
-				//}
+				
 			}
 		});
 		
@@ -208,12 +223,59 @@ public class NavigationActivity extends FragmentActivity implements OnMarkerClic
 
 	@Override
 	public void onProviderDisabled(String provider) {
-		// TODO Auto-generated method stub
+		// TODO Auto-generated method stub 
 		
 	}
 	
 
 	}
+    public  boolean onMarkerClick(final Marker marker) {
+    	marker.showInfoWindow();
+        myPOI currentPOI= mMarkersHashMap.get(marker);
+        DLAT=currentPOI.getmLatitude();
+        DLNG=currentPOI.getmLongitude();
+        text1=(TextView)findViewById(R.id.textView1);
+		text2=(TextView)findViewById(R.id.textView2);
+        BottomButton=(LinearLayout)findViewById(R.id.BottomButton);
+        BottomBarFlag=true;
+        // initialize Detailed Information ListView LinearLayout
+        myDetailedListView=(LinearLayout)findViewById(R.id.myDetailedListView);
+        ListViewMainButton=(LinearLayout)findViewById(R.id.ListViewMainButton);
+        text3=(TextView)findViewById(R.id.textView3);
+        text4=(TextView)findViewById(R.id.textView4);
+        listView=(ListView)findViewById(R.id.listview);
+       
+        if(gen_service.gen_flag==true)
+        {    // Set the customized information on BottomBar
+	        text1.setText(gen_service.firstTextInfoOfGen(currentPOI));
+	        text2.setText(gen_service.secondTextInfoOfGen(currentPOI));
+	        BottomButton.setVisibility(View.VISIBLE);
+	        
+	        // Set the customized information on ListView
+	        text3.setText(gen_service.firstTextInfoOfGen(currentPOI));
+	        text4.setText(gen_service.secondTextInfoOfGen(currentPOI));
+	        list=daily_service.getTargetListView(currentPOI);
+	        SBU_dailyLife_service.StableArrayAdapter adapter = daily_service.new StableArrayAdapter(NavigationActivity.this, android.R.layout.simple_list_item_1,list);
+	        listView.setAdapter(adapter);
+        }
+        
+        if(daily_service.daily_flag==true)
+        {
+        	 text1.setText(daily_service.firstTextInfoOfDaily(currentPOI));
+             text2.setText(daily_service.secondTextInfoOfDaily(currentPOI));
+             BottomButton.setVisibility(View.VISIBLE);
+             
+             text3.setText(daily_service.firstTextInfoOfDaily(currentPOI));
+             text4.setText(daily_service.secondTextInfoOfDaily(currentPOI));
+             ListDetialedImage=(ImageView)findViewById(R.id.ListViewImage);
+             ListDetialedImage.setImageResource(R.drawable.sac);
+             list=daily_service.getTargetListView(currentPOI);
+             SBU_dailyLife_service.StableArrayAdapter adapter = daily_service.new StableArrayAdapter(NavigationActivity.this, android.R.layout.simple_list_item_1,list);
+             listView.setAdapter(adapter);	
+        }
+
+		return false ;
+    }
 	
 	@Override
 	protected void onResume() {
@@ -249,48 +311,7 @@ public class NavigationActivity extends FragmentActivity implements OnMarkerClic
 		
 	}
 	
-	// infoWindowAdaper need future working.
-	/*public class UserInfoWindowAdapter implements InfoWindowAdapter {
-	        LayoutInflater inflater = null;
-	        
-	    	
-	    	 public UserInfoWindowAdapter( LayoutInflater inflater) {
-	                      this.inflater=inflater;
-	    	 }
-	    	@Override
-	    	public View getInfoWindow(Marker marker) {
-	    		return null;
-	    	}
-	    	
-	    	@Override
-	    	public View getInfoContents(Marker marker) {
-	    		
-	    	View infoWindows= inflater.inflate(R.layout.activity_navigation, null);
-	    	TextView title = (TextView)infoWindows.findViewById(R.id.title);
-	    	TextView description = (TextView)infoWindows.findViewById(R.id.snippet);
-	    	
-	    	title.setText(marker.getTitle());
-	    	description.setText(marker.getSnippet());
-	    	
-	    	return (infoWindows);	
-
-	    	}
-	    }*/
 	
-	public  boolean onMarkerClick(final Marker marker) {
-        double x=marker.getPosition().latitude;
-		
-        LatLng destination= marker.getPosition();
-        DLAT=destination.latitude;
-        DLNG=destination.longitude;
-        text1=(TextView)findViewById(R.id.textView1);
-		text2=(TextView)findViewById(R.id.textView2);
-        ButtomButton=(LinearLayout)findViewById(R.id.BottomButton);
-        text1.setText(marker.getTitle());
-        text2.setText(marker.getTitle());
-        ButtomButton.setVisibility(View.VISIBLE);
-		return false ;
-    }
 	
 	
 
@@ -328,14 +349,7 @@ public class NavigationActivity extends FragmentActivity implements OnMarkerClic
 	        return super.onOptionsItemSelected(item);
 	    }
 	
-	
-	
 
-	
-	
-	
-	
-	
 	
 	private void getSreenDimanstions()
 	{
